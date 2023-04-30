@@ -1,3 +1,8 @@
+# WARNING!!! PLEASE READ BEFORE PROCEED!!!
+* This is cloned from https://github.com/uxDaniel/visa_rescheduler
+* Purpose: primary for personal interest on technology + our visa scheduling
+* Note: it is probably illegal to run a script against a website not by yours. Especially a government site. Use it as own risk.
+
 # visa_rescheduler
 US VISA (ais.usvisa-info.com) appointment re-scheduler - Colombian adaptation
 
