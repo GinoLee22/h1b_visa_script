@@ -26,7 +26,7 @@ USERNAME = config['USVISA']['USERNAME']
 PASSWORD = config['USVISA']['PASSWORD']
 SCHEDULE_ID = config['USVISA']['SCHEDULE_ID']
 MY_SCHEDULE_DATE = config['USVISA']['MY_SCHEDULE_DATE']
-COUNTRY_CODE = config['USVISA']['COUNTRY_CODE'] 
+COUNTRY_CODE = config['USVISA']['COUNTRY_CODE']
 FACILITY_ID = config['USVISA']['FACILITY_ID']
 
 SENDGRID_API_KEY = config['SENDGRID']['SENDGRID_API_KEY']
@@ -40,12 +40,15 @@ REGEX_CONTINUE = "//a[contains(text(),'Continuar')]"
 
 
 # def MY_CONDITION(month, day): return int(month) == 11 and int(day) >= 5
-def MY_CONDITION(month, day): return True # No custom condition wanted for the new scheduled date
+# No custom condition wanted for the new scheduled date
+def MY_CONDITION(month, day): return True
+
 
 STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
 RETRY_TIME = 60*10  # wait time between retries/checks for available dates: 10 minutes
 EXCEPTION_TIME = 60*30  # wait time when an exception occurs: 30 minutes
-COOLDOWN_TIME = 60*60  # wait time when temporary banned (empty list): 60 minutes
+# wait time when temporary banned (empty list): 60 minutes
+COOLDOWN_TIME = 60*60
 
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
@@ -85,8 +88,10 @@ def get_driver():
     if LOCAL_USE:
         dr = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
     else:
-        dr = webdriver.Remote(command_executor=HUB_ADDRESS, options=webdriver.ChromeOptions())
+        dr = webdriver.Remote(command_executor=HUB_ADDRESS,
+                              options=webdriver.ChromeOptions())
     return dr
+
 
 driver = get_driver()
 
@@ -100,8 +105,9 @@ def login():
     time.sleep(STEP_TIME)
 
     print("Login start...")
-    href = driver.find_element(By.XPATH, '//*[@id="header"]/nav/div[1]/div[1]/div[2]/div[1]/ul/li[3]/a')
-   
+    href = driver.find_element(
+        By.XPATH, '//*[@id="header"]/nav/div[1]/div[1]/div[2]/div[1]/ul/li[3]/a')
+
     href.click()
     time.sleep(STEP_TIME)
     Wait(driver, 60).until(EC.presence_of_element_located((By.NAME, "commit")))
@@ -185,7 +191,7 @@ def reschedule(date):
     }
 
     r = requests.post(APPOINTMENT_URL, headers=headers, data=data)
-    if(r.text.find('Successfully Scheduled') != -1):
+    if (r.text.find('Successfully Scheduled') != -1):
         msg = f"Rescheduled Successfully! {date} {time}"
         send_notification(msg)
         EXIT = True
@@ -196,7 +202,7 @@ def reschedule(date):
 
 def is_logged_in():
     content = driver.page_source
-    if(content.find("error") != -1):
+    if (content.find("error") != -1):
         return False
     return True
 
@@ -204,7 +210,8 @@ def is_logged_in():
 def print_dates(dates):
     print("Available dates:")
     for d in dates:
-        print("%s \t business_day: %s" % (d.get('date'), d.get('business_day')))
+        print("%s \t business_day: %s" %
+              (d.get('date'), d.get('business_day')))
     print()
 
 
@@ -226,7 +233,7 @@ def get_available_date(dates):
         date = d.get('date')
         if is_earlier(date) and date != last_seen:
             _, month, day = date.split('-')
-            if(MY_CONDITION(month, day)):
+            if (MY_CONDITION(month, day)):
                 last_seen = date
                 return date
 
@@ -252,9 +259,9 @@ if __name__ == "__main__":
 
             dates = get_date()[:5]
             if not dates:
-              msg = "List is empty"
-              send_notification(msg)
-              EXIT = True
+                msg = "List is empty"
+                send_notification(msg)
+                EXIT = True
             print_dates(dates)
             date = get_available_date(dates)
             print()
@@ -263,21 +270,21 @@ if __name__ == "__main__":
                 reschedule(date)
                 push_notification(dates)
 
-            if(EXIT):
+            if (EXIT):
                 print("------------------exit")
                 break
 
             if not dates:
-              msg = "List is empty"
-              send_notification(msg)
-              #EXIT = True
-              time.sleep(COOLDOWN_TIME)
+                msg = "List is empty"
+                send_notification(msg)
+                # EXIT = True
+                time.sleep(COOLDOWN_TIME)
             else:
-              time.sleep(RETRY_TIME)
+                time.sleep(RETRY_TIME)
 
         except:
             retry_count += 1
             time.sleep(EXCEPTION_TIME)
 
-    if(not EXIT):
+    if (not EXIT):
         send_notification("HELP! Crashed.")
