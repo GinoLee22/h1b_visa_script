@@ -36,7 +36,13 @@ PUSH_USER = config['PUSHOVER']['PUSH_USER']
 LOCAL_USE = config['CHROMEDRIVER'].getboolean('LOCAL_USE')
 HUB_ADDRESS = config['CHROMEDRIVER']['HUB_ADDRESS']
 
-REGEX_CONTINUE = "//a[contains(text(),'Continuar')]"
+REGEX_CONTINUE = "//a[contains(text(),'Continue')]"
+
+DATE_FORMAT = "%Y-%m-%d"
+DATE_LOWER_BOUND = datetime.strptime(
+    config['DESIRED_DATE']['LOWER_BOUND'], DATE_FORMAT).date()
+DATE_UPPER_BOUND = datetime.strptime(
+    config['DESIRED_DATE']['UPPER_BOUND'], DATE_FORMAT).date()
 
 
 # def MY_CONDITION(month, day): return int(month) == 11 and int(day) >= 5
@@ -147,14 +153,21 @@ def do_login_action():
 
 
 def get_date():
-    driver.get(DATE_URL)
     if not is_logged_in():
         login()
         return get_date()
     else:
-        content = driver.find_element(By.TAG_NAME, 'pre').text
-        date = json.loads(content)
-        return date
+        driver.get(APPOINTMENT_URL)
+        # to get json data from server need to set the http header with json
+        request = driver.execute_script(
+            "var req = new XMLHttpRequest();" +
+            "req.open('GET', '" + str(DATE_URL) + "', false);" +
+            "req.setRequestHeader('Accept', 'application/json, text/javascript, */*; q=0.01');" +
+            "req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');" +
+            "req.send(null);return req.responseText;"
+        )
+    date = json.loads(request)
+    return date
 
 
 def get_time(date):
@@ -202,7 +215,7 @@ def reschedule(date):
 
 def is_logged_in():
     content = driver.page_source
-    if (content.find("error") != -1):
+    if (content.find("error") == -1):
         return False
     return True
 
@@ -245,6 +258,11 @@ def push_notification(dates):
     send_notification(msg)
 
 
+def does_desired_date_found(dates):
+    date = datetime.strptime(dates[0]['date'], DATE_FORMAT).date()
+    return date >= DATE_LOWER_BOUND and date <= DATE_UPPER_BOUND
+
+
 if __name__ == "__main__":
     login()
     retry_count = 0
@@ -257,32 +275,40 @@ if __name__ == "__main__":
             print(f"Retry count: {retry_count}")
             print()
 
-            dates = get_date()[:5]
+            dates = get_date()
             if not dates:
-                msg = "List is empty"
-                send_notification(msg)
-                EXIT = True
-            print_dates(dates)
-            date = get_available_date(dates)
-            print()
-            print(f"New date: {date}")
-            if date:
-                reschedule(date)
-                push_notification(dates)
+                retry_count += 1
+                raise Exception("No dates found")
+            else:
+                if does_desired_date_found(dates):
+                    EXIT = True
+            # if not dates:
+            #     msg = "List is empty"
+            #     send_notification(msg)
+            #     EXIT = True
+            # print_dates(dates)
+            # date = get_available_date(dates)
+            # print()
+            # print(f"New date: {date}")
+            # if date:
+            #     reschedule(date)
+            #     push_notification(dates)
 
             if (EXIT):
                 print("------------------exit")
                 break
 
-            if not dates:
-                msg = "List is empty"
-                send_notification(msg)
-                # EXIT = True
-                time.sleep(COOLDOWN_TIME)
-            else:
-                time.sleep(RETRY_TIME)
+            # if not dates:
+            #     msg = "List is empty"
+            #     send_notification(msg)
+            #     # EXIT = True
+            #     time.sleep(COOLDOWN_TIME)
+            # else:
+            #     time.sleep(RETRY_TIME)
 
-        except:
+        except Exception as ex:
+            # print the error message to debugging
+            print(f"Exception: {ex}")
             retry_count += 1
             time.sleep(EXCEPTION_TIME)
 

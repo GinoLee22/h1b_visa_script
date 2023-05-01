@@ -23,3 +23,8 @@ PUSH_USER = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 [SENDGRID]
 ; Get email notifications via https://sendgrid.com/ (optional)
 SENDGRID_API_KEY = 
+
+[DESIRED_DATE]
+; in the format of yyyy-mm-dd
+LOWER_BOUND = 2023-05-16
+UPPER_BOUND = 2023-07-30
