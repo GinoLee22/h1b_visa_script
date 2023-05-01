@@ -18,6 +18,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
+from send_sms import send
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -281,6 +282,7 @@ if __name__ == "__main__":
                 raise Exception("No dates found")
             else:
                 if does_desired_date_found(dates):
+                    send()
                     EXIT = True
             # if not dates:
             #     msg = "List is empty"
