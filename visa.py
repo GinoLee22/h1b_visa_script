@@ -52,7 +52,7 @@ def MY_CONDITION(month, day): return True
 
 
 STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
-RETRY_TIME = 60*10  # wait time between retries/checks for available dates: 10 minutes
+RETRY_TIME = 60*30  # wait time between retries/checks for available dates: 10 minutes
 EXCEPTION_TIME = 60*30  # wait time when an exception occurs: 30 minutes
 # wait time when temporary banned (empty list): 60 minutes
 COOLDOWN_TIME = 60*60
@@ -171,23 +171,26 @@ def get_date():
     return date
 
 
-def get_time(date):
+def get_time(date: str):
     time_url = TIME_URL % date
-    driver.get(time_url)
-    content = driver.find_element(By.TAG_NAME, 'pre').text
-    data = json.loads(content)
-    time = data.get("available_times")[-1]
+    request = driver.execute_script(
+        "var req = new XMLHttpRequest();" +
+        "req.open('GET', '" + str(time_url) + "', false);" +
+        "req.setRequestHeader('Accept', 'application/json, text/javascript, */*; q=0.01');" +
+        "req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');" +
+        "req.send(null);return req.responseText;"
+    )
+    time = json.loads(request)["available_times"]
     print(f"Got time successfully! {date} {time}")
     return time
 
 
-def reschedule(date):
+def reschedule(date: str):
     global EXIT
     print(f"Starting Reschedule ({date})")
 
     time = get_time(date)
     driver.get(APPOINTMENT_URL)
-
     data = {
         "utf8": driver.find_element(by=By.NAME, value='utf8').get_attribute('value'),
         "authenticity_token": driver.find_element(by=By.NAME, value='authenticity_token').get_attribute('value'),
@@ -205,8 +208,8 @@ def reschedule(date):
     }
 
     r = requests.post(APPOINTMENT_URL, headers=headers, data=data)
-    if (r.text.find('Successfully Scheduled') != -1):
-        msg = f"Rescheduled Successfully! {date} {time}"
+    if (r.text.find('successfully') != -1):
+        msg = f"Rescheduled successfully! {date} {time}"
         send_notification(msg)
         EXIT = True
     else:
@@ -259,9 +262,11 @@ def push_notification(dates):
     send_notification(msg)
 
 
-def does_desired_date_found(dates):
+def get_desired_date_found(dates):
     date = datetime.strptime(dates[0]['date'], DATE_FORMAT).date()
-    return date >= DATE_LOWER_BOUND and date <= DATE_UPPER_BOUND
+    if date >= DATE_LOWER_BOUND and date <= DATE_UPPER_BOUND:
+        return date
+    return None
 
 
 if __name__ == "__main__":
@@ -281,9 +286,11 @@ if __name__ == "__main__":
                 retry_count += 1
                 raise Exception("No dates found")
             else:
-                if does_desired_date_found(dates):
-                    send()
-                    EXIT = True
+                desired_date = get_desired_date_found(dates)
+                if desired_date:
+                    reschedule(desired_date)
+                    # Twillo need to verify the free number. It is manual.
+                    # send()
             # if not dates:
             #     msg = "List is empty"
             #     send_notification(msg)
