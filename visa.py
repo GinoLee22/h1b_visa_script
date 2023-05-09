@@ -38,6 +38,7 @@ LOCAL_USE = config['CHROMEDRIVER'].getboolean('LOCAL_USE')
 HUB_ADDRESS = config['CHROMEDRIVER']['HUB_ADDRESS']
 
 REGEX_CONTINUE = "//a[contains(text(),'Continue')]"
+XPATH_SCHEDULE_APPOINTMENT = "//title"
 
 DATE_FORMAT = "%Y-%m-%d"
 DATE_LOWER_BOUND = datetime.strptime(
@@ -51,8 +52,10 @@ DATE_UPPER_BOUND = datetime.strptime(
 def MY_CONDITION(month, day): return True
 
 
+SECONDS_TO_RUN = int(config['RETRY']['SECONDS_TO_RUN'])
+RETRY_INTERVAL = int(config['RETRY']['RETRY_INTERVAL'])
+
 STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
-RETRY_TIME = 60*30  # wait time between retries/checks for available dates: 10 minutes
 EXCEPTION_TIME = 60*30  # wait time when an exception occurs: 30 minutes
 # wait time when temporary banned (empty list): 60 minutes
 COOLDOWN_TIME = 60*60
@@ -60,6 +63,9 @@ COOLDOWN_TIME = 60*60
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
+APPOINTMENT_REFERAL_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/continue_actions"
+APPOINTMENT_INFO_URI = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv"
+
 EXIT = False
 
 
@@ -105,7 +111,7 @@ driver = get_driver()
 
 def login():
     # Bypass reCAPTCHA
-    driver.get(f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv")
+    driver.get(APPOINTMENT_INFO_URI)
     time.sleep(STEP_TIME)
     a = driver.find_element(By.XPATH, '//a[@class="down-arrow bounce"]')
     a.click()
@@ -149,7 +155,7 @@ def do_login_action():
     time.sleep(random.randint(1, 3))
 
     Wait(driver, 60).until(
-        EC.presence_of_element_located((By.XPATH, REGEX_CONTINUE)))
+        EC.presence_of_element_located((By.XPATH, XPATH_SCHEDULE_APPOINTMENT)))
     print("\tlogin successful!")
 
 
@@ -178,7 +184,9 @@ def get_time(date: str):
         "req.open('GET', '" + str(time_url) + "', false);" +
         "req.setRequestHeader('Accept', 'application/json, text/javascript, */*; q=0.01');" +
         "req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');" +
-        "req.send(null);return req.responseText;"
+        "xhr.setRequestHeader('Referer', ", + APPOINTMENT_REFERAL_URL + ");" +
+        "req.send(null);" +
+        "return req.responseText;"
     )
     time = json.loads(request)["available_times"]
     print(f"Got time successfully! {date} {time}")
@@ -218,8 +226,11 @@ def reschedule(date: str):
 
 
 def is_logged_in():
+    # try to hit appointment link to verify the login status.
+    # "Attend Appointment" -> Logged in. Otherwise no.
+    driver.get(APPOINTMENT_INFO_URI)
     content = driver.page_source
-    if (content.find("error") == -1):
+    if (content.find("Attend Appointment") == -1):
         return False
     return True
 
@@ -271,9 +282,10 @@ def get_desired_date_found(dates):
 
 if __name__ == "__main__":
     login()
+    retry_limit = SECONDS_TO_RUN // RETRY_INTERVAL
     retry_count = 0
     while 1:
-        if retry_count > 6:
+        if retry_count > retry_limit:
             break
         try:
             print("------------------")
@@ -289,6 +301,10 @@ if __name__ == "__main__":
                 desired_date = get_desired_date_found(dates)
                 if desired_date:
                     reschedule(desired_date)
+                else:
+                    retry_count += 1
+                    print("No desired date found")
+                    time.sleep(RETRY_INTERVAL)
                     # Twillo need to verify the free number. It is manual.
                     # send()
             # if not dates:
